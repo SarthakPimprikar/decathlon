@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 import { BasePage } from './basePage';
 import { CommonLocators } from '../ui-store/commonLocators';
 import { Expected } from '../ui-store/expected';
@@ -58,6 +58,36 @@ export class ResultsPage extends BasePage {
     await link.click({ position: { x: 20, y: 20 } });
     await NetworkUtil.waitForUrlContaining(this.page, Expected.address.product);
     this.log.info('openProduct', `Opened ${href}`);
+    return href;
+  }
+
+  /* Every tickable choice on show, so a test can count them. */
+  openFacetChoices(): Locator {
+    return this.page.locator(CommonLocators.openFacetChoice);
+  }
+
+  /* Open the product with the highest price on show. Returns the address it opened. */
+  async openDearerProduct(): Promise<string> {
+    await this.waitForProducts();
+    const cards = this.page.locator(CommonLocators.productLink);
+    const texts = await cards.allInnerTexts();
+
+    let dearest = -1;
+    let index = 0;
+    texts.forEach((text, i) => {
+      const match = text.match(/₹\s*([\d,]+)/);
+      const price = match ? Number(match[1].replace(/,/g, '')) : -1;
+      if (price > dearest) {
+        dearest = price;
+        index = i;
+      }
+    });
+
+    const link = cards.nth(index);
+    const href = (await link.getAttribute('href')) ?? '';
+    await link.click({ position: { x: 20, y: 20 } });
+    await NetworkUtil.waitForUrlContaining(this.page, Expected.address.product);
+    this.log.info('openDearerProduct', `Opened ${href} (price ${dearest})`);
     return href;
   }
 }

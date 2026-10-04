@@ -22,4 +22,19 @@ export class BasePage {
     await this.page.goBack({ waitUntil: 'domcontentloaded' });
     this.log.info('goBack', `Back on ${this.page.url()}`);
   }
+
+  /* Reload the page as it stands. */
+  async reload(): Promise<void> {
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    this.log.info('reload', `Reloaded ${this.page.url()}`);
+  }
+
+  /* Scroll until the foot of the page is in view (keeps going while lazy content makes the page grow). */
+  async scrollToFoot(): Promise<void> {
+    await this.page.waitForFunction(() => {
+      window.scrollTo(0, document.body.scrollHeight);
+      return window.innerHeight + window.scrollY >= document.body.scrollHeight - 2;
+    });
+    this.log.info('scrollToFoot', 'Foot of the page is in view');
+  }
 }
