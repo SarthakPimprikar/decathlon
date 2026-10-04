@@ -1,4 +1,4 @@
-/* Selectors for this area live here, and only here. */
+/* Selectors for a product aisle. */
 export const CatalogueLocators = {
-  // example: searchBox: 'input[type="search"]',
+  aisleHeading: 'h1',
 };
