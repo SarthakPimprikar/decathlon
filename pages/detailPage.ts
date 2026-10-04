@@ -1,12 +1,15 @@
-import { Page } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 import { BasePage } from './basePage';
 import { CommonLocators } from '../ui-store/commonLocators';
 
-/* Actions for this page go here; selectors come from ui-store. */
+/* A product page (/p/...). */
 export class DetailPage extends BasePage {
-  protected readonly locators = CommonLocators;
-
   constructor(page: Page) {
     super(page);
+  }
+
+  /* The product's name, for the test to check it is visible. */
+  productName(): Locator {
+    return this.page.locator(CommonLocators.productName).first();
   }
 }
