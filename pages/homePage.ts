@@ -1,12 +1,14 @@
 import { Page } from '@playwright/test';
 import { BasePage } from './basePage';
-import { CommonLocators } from '../ui-store/commonLocators';
+import { Routes } from '../ui-store/routes';
 
-/* Actions for this page go here; selectors come from ui-store. */
+/* The front page. */
 export class HomePage extends BasePage {
-  protected readonly locators = CommonLocators;
-
   constructor(page: Page) {
     super(page);
+  }
+
+  async openHome(): Promise<void> {
+    await this.open(Routes.home);
   }
 }
