@@ -1,30 +1,53 @@
-import { Page, TestInfo } from '@playwright/test';
-import { ConfigReader } from './configReader';
-import { getLogger } from './logger';
+//Screenshot
 
-const log = getLogger('ScreenshotUtil');
 
-/* Screenshots always go under the test's own output path, never into the repository. */
-export class ScreenshotUtil {
-  /* Take a screenshot and attach it to the step (or test) that is running. */
-  static async attach(page: Page, testInfo: TestInfo, name: string, fullPage = false): Promise<string> {
-    const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
-    const file = testInfo.outputPath(ConfigReader.evidenceDir, `${safeName}.png`);
-    await page.screenshot({ path: file, fullPage });
-    await testInfo.attach(safeName, { path: file, contentType: 'image/png' });
-    log.info('attach', `Saved ${file}`);
-    return file;
-  }
+import fs from "fs";
+import path from "path";
+import type { Page } from "@playwright/test";
+import { readableTimestamp } from "./dateUtil";
+import { logger } from "./logger";
 
-  /* Call from afterEach: takes a full-page screenshot only when the test failed. */
-  static async captureOnFailure(page: Page, testInfo: TestInfo): Promise<void> {
-    if (testInfo.status === testInfo.expectedStatus) {
-      return;
-    }
-    try {
-      await ScreenshotUtil.attach(page, testInfo, `FAILED_${testInfo.title}`, true);
-    } catch (error) {
-      log.error('captureOnFailure', `Could not take the failure screenshot: ${String(error)}`);
-    }
-  }
+const SCREENSHOT_DIR = path.join(process.cwd(), "reports", "screenshots");
+
+/**
+ * Makes a scenario or step name safe to use inside a file name.
+ *
+ * A scenario outline carries its example values in its name, quotes included,
+ * and a quote is not a legal character in a Windows file name.
+ */
+export function safeName(name: string): string {
+  return name
+    .replace(/["<>:/\\|?*]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
 }
+
+function ensureDir(): void {
+  if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+}
+
+/** Evidence a step asks for by name: reports/screenshots/NORMAL-<name>-<time>.png */
+export async function takeNormalScreenshot(page: Page, name: string): Promise<string> {
+  ensureDir();
+  const file = path.join(SCREENSHOT_DIR, `NORMAL-${safeName(name)}-${readableTimestamp()}.png`);
+  await page.screenshot({ path: file, fullPage: false });
+  logger.info(`Screenshot captured: ${name}`);
+  return file;
+}
+
+/** Evidence the After hook takes when a scenario fails. */
+export async function takeErrorScreenshot(page: Page, scenarioName: string): Promise<string> {
+  ensureDir();
+  const file = path.join(SCREENSHOT_DIR, `ERROR-${safeName(scenarioName)}-${readableTimestamp()}.png`);
+  await page.screenshot({ path: file, fullPage: false });
+  logger.error(`Failure screenshot captured for: ${scenarioName}`);
+  return file;
+}
+
+/** How many screenshots the run has produced so far. */
+export function screenshotCount(): number {
+  return fs.existsSync(SCREENSHOT_DIR) ? fs.readdirSync(SCREENSHOT_DIR).length : 0;
+}
+
+export { SCREENSHOT_DIR };

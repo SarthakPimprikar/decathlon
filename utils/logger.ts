@@ -1,78 +1,53 @@
-import * as log4js from 'log4js';
-import * as fs from 'fs';
-import * as path from 'path';
-import { ConfigReader } from './configReader';
+//Loggger
 
-type LevelName = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+import fs from "fs";
+import path from "path";
+import { logTimestamp, readableTimestamp } from "./dateUtil";
 
-let configured = false;
 
-/* Sets log4js up once: the file gets every level, the console follows LOG_LEVEL. */
-function configure(): void {
-  if (configured) {
-    return;
-  }
-  const logFile = path.resolve(__dirname, '..', ConfigReader.logFile);
-  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+const LOG_DIR = path.join(process.cwd(), "logs");
+if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 
-  log4js.configure({
-    appenders: {
-      file: { type: 'file', filename: logFile, layout: { type: 'messagePassThrough' } },
-      consoleRaw: { type: 'stdout', layout: { type: 'messagePassThrough' } },
-      console: { type: 'logLevelFilter', appender: 'consoleRaw', level: ConfigReader.logLevel },
-    },
-    categories: { default: { appenders: ['file', 'console'], level: 'trace' } },
-  });
-  configured = true;
+export const LOG_FILE_PATH = path.join(LOG_DIR, `execution-${readableTimestamp()}.log`);
+
+export type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
+
+const lines: string[] = [];
+const messages: { level: LogLevel; message: string }[] = [];
+
+function write(level: LogLevel, message: string): void {
+  const entry = `[${level}] ${logTimestamp()} ${message}`;
+  lines.push(entry);
+  messages.push({ level, message });
+  fs.appendFileSync(LOG_FILE_PATH, `${entry}\n`);
+  console.log(entry);
 }
 
-/* yyyy.MM.dd.HH.mm.ss */
-function timestamp(): string {
-  const d = new Date();
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}.${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}`;
-}
+export const logger = {
+  info: (message: string) => write("INFO", message),
+  warn: (message: string) => write("WARN", message),
+  error: (message: string) => write("ERROR", message),
+  debug: (message: string) => write("DEBUG", message),
 
-/* Writes lines like: [INFO] 2026.10.04.12.30.45 HomePage.open Opened the front page */
-export class AppLogger {
-  private readonly logger: log4js.Logger;
-  private readonly className: string;
+  /** The full formatted lines. */
+  lines: (): string[] => [...lines],
 
-  constructor(className: string) {
-    configure();
-    this.className = className;
-    this.logger = log4js.getLogger(className);
-  }
+  /** The action messages alone, without the level or the time. */
+  messages: (): string[] => messages.map((entry) => entry.message),
 
-  private write(level: LevelName, method: string, message: string): void {
-    this.logger[level](`[${level.toUpperCase()}] ${timestamp()} ${this.className}.${method} ${message}`);
-  }
+  /** The action messages written at one level. */
+  messagesAt: (level: LogLevel): string[] =>
+    messages.filter((entry) => entry.level === level).map((entry) => entry.message)
+};
 
-  trace(method: string, message: string): void {
-    this.write('trace', method, message);
-  }
+/** The newest log file in the logs folder — never the alphabetically first. */
+export function latestLogFile(): string {
+  const files = fs
+    .readdirSync(LOG_DIR)
+    .filter((file) => file.endsWith(".log"))
+    .map((file) => ({ file, time: fs.statSync(path.join(LOG_DIR, file)).mtimeMs }))
+    .sort((a, b) => b.time - a.time);
 
-  debug(method: string, message: string): void {
-    this.write('debug', method, message);
-  }
-
-  info(method: string, message: string): void {
-    this.write('info', method, message);
-  }
-
-  warn(method: string, message: string): void {
-    this.write('warn', method, message);
-  }
-
-  error(method: string, message: string): void {
-    this.write('error', method, message);
-  }
-
-  fatal(method: string, message: string): void {
-    this.write('fatal', method, message);
-  }
-}
-
-export function getLogger(className: string): AppLogger {
-  return new AppLogger(className);
+  if (files.length === 0) throw new Error("No log file was written under logs/");
+  return path.join(LOG_DIR, files[0].file);
 }
